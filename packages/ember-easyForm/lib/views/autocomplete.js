@@ -1,10 +1,10 @@
-Ember.EasyForm.Input = Ember.EasyForm.BaseView.extend({
+Ember.EasyForm.Autocomplete = Ember.EasyForm.BaseView.extend({
   init: function() {
     this._super();
     this.classNameBindings.push('showError:' + this.get('wrapperConfig.fieldErrorClass'));
     Ember.defineProperty(this, 'showError', Ember.computed.and('canShowValidationError', 'formForModel.errors.' + this.property + '.firstObject'));
     if (!this.isBlock) {
-      this.set('templateName', this.get('wrapperConfig.inputTemplate'));
+      this.set('templateName', this.get('wrapperConfig.autocompleteTemplate'));
     }
   },
   setupValidationDependencies: function() {
@@ -21,16 +21,17 @@ Ember.EasyForm.Input = Ember.EasyForm.BaseView.extend({
   dependentValidationKeyCanTrigger: false,
   tagName: 'div',
   classNames: ['string'],
-  classNameBindings: ['wrapperConfig.inputClass'],
+  classNameBindings: ['wrapperConfig.autocompleteClass'],
   didInsertElement: function() {
     var name = 'label-field-'+this.elementId,
         label = this.get(name);
     if (!label) { return; }
     this.set(name+'.for', this.get('input-field-'+this.elementId+'.elementId'));
-    this.addObserver("formForModel.errors."+this.get('property')+".@each", this, "errorsChanged");
+    this.addObserver('formForModel.errors.'+this.get('property')+'.@each', this, "errorsChanged");
+    this.addObserver('input-field-'+this.elementId+'.value', this, "fetchResults" );
   },
   concatenatedProperties: ['inputOptions', 'bindableInputOptions'],
-  inputOptions: ['as', 'collection', 'optionValuePath', 'optionLabelPath', 'selection', 'value', 'multiple', 'name'],
+  inputOptions: ['as', 'collection', 'optionValuePath', 'optionLabelPath', 'selection', 'value', 'multiple', 'name', 'listFormat', 'valueFormat', 'params' ],
   bindableInputOptions: ['placeholder', 'prompt', 'disabled'],
   defaultOptions: {
     name: function(){
@@ -92,8 +93,43 @@ Ember.EasyForm.Input = Ember.EasyForm.BaseView.extend({
      }, this);
     }, this);
   },
-  errorsChanged: function() {
-    this.set('hasFocusedOut', true);
-    this.showValidationError();
-  }
+  fetchResults: function() {
+        var element = this.get('input-field-'+this.elementId);
+        var st = element.get('value');
+        if (! st) {
+            this.set('searchResults',[]);
+            return;    
+        }
+        
+        var model = this.get('formForModel');
+        var store = model.get('store');
+        var params = this.get('inputOptionsValues.params').split(",");
+        var listformat = this.get('inputOptionsValues.listFormat');
+        var valueformat = this.get('inputOptionsValues.valueFormat');
+        var adapter = store.adapterFor(model);
+        var scope = this;
+        
+        adapter.ajax(adapter.buildURL(model.get('constructor.typeKey')), 'GET', {data: {"search":st}} ).then(function(payload) {
+            
+            var inflector = Ember.Inflector.inflector;
+            var objects = payload[inflector.pluralize(model.get('constructor.typeKey'))];
+            objects.forEach(function(item, index) {   
+              var data = Array();
+              params.forEach(function(param, pi){
+                data.push(item[param]);
+              });
+              item['formatted'] = Ember.String.htmlSafe(vsprintf(listformat,data));
+              item['business'] = vsprintf(valueformat,data);
+            });
+            scope.set('searchResults',objects);
+        });
+    },
+    actions: {
+        setValue: function(item) {
+            var element = this.get('input-field-'+this.elementId);
+            console.log(item['business']);
+            element.set('value',item['business']);
+                
+        }   
+    }
 });

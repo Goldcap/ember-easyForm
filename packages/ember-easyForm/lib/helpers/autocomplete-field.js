@@ -1,7 +1,7 @@
 var get = Ember.get,
     set = Ember.set;
 
-Ember.Handlebars.registerHelper('input-field', function(property, options) {
+Ember.Handlebars.registerHelper('autocomplete-field', function(property, options) {
   options = Ember.EasyForm.processOptions(property, options);
 
   if (options.hash.propertyBinding) {
